@@ -89,13 +89,20 @@ export function ProxyForm({
    *  so a line reads one way everywhere. Unlike that paste, this box is for
    *  nothing else, so it is read as it is typed: every field the line can
    *  carry is set from it, and one it does not carry is emptied, so the form
-   *  below is always what this line says. */
+   *  below is always what this line says.
+   *
+   *  Which is why the box is only in a NEW proxy's form. It was in the edit
+   *  form as well until 17.11.2026, and there "emptied" meant the login and
+   *  password already saved: a few characters typed into it replaced the
+   *  address and blanked both, and Save then stored that. A saved proxy is
+   *  changed in its own fields, where the address box still takes a pasted
+   *  line and leaves alone what the line does not carry.
+   *
+   *  The address is asked for its protocol when the line is whole -- pasted,
+   *  or the box left, or Enter -- and not at a pause in the typing. */
   const [line, setLine] = useState("");
   const [lineRead, setLineRead] = useState<{ shape: string } | "bad" | null>(null);
-  // The reader the address box's paste uses (proxyLine.ts). Unlike that paste,
-  // this box is for nothing else, so it is read as it is typed: every field the
-  // line can carry is set from it, one it does not carry is emptied, and the
-  // address is asked for its protocol once the typing has stopped.
+  const linePasted = useRef(false);
   const reader = useMemo(() => proxyLineReader((p) => {
     if (!p) {
       setLineRead("bad");
@@ -113,17 +120,20 @@ export function ProxyForm({
     if (kindTouched.current) return;
     setKind(k);
     setSniffed(k);
-  }, 700), []);
+  }, true), []);
   useEffect(() => reader.cancel, [reader]);
   const readLine = (text: string) => {
     setLine(text);
-    const one = text.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
+    // An <input> holds one line: the browser drops the line breaks of a paste.
+    const one = text.trim();
+    const whole = linePasted.current;
+    linePasted.current = false;
     if (!one) {
       reader.cancel();
       setLineRead(null);
       return;
     }
-    reader.read(one);
+    reader.read(one, whole);
   };
 
   const complete = host.trim() !== "" && Number(port) > 0;
@@ -162,14 +172,20 @@ export function ProxyForm({
         {/* Locked: the fields still show the proxy and the check still runs,
             but nothing reads as editable that Save would only refuse. */}
         <div className={locked ? "form locked" : "form"} style={{ paddingTop: "var(--s-5)" }}>
-          {!locked && !wg && (
+          {!editing && !wg && (
             <div className="field">
               <label htmlFor="f-line">{t("px.quick")}</label>
               <div>
-                <input id="f-line" value={line} autoFocus={!editing} spellCheck={false} autoComplete="off"
+                <input id="f-line" value={line} autoFocus spellCheck={false} autoComplete="off"
                   className="mono"
                   placeholder="1.2.3.4:8080:user:pass  ·  socks5://user:pass@host:1080"
-                  onChange={(e) => readLine(e.target.value)} />
+                  onPaste={() => { linePasted.current = true; }}
+                  onChange={(e) => readLine(e.target.value)}
+                  onBlur={reader.flush}
+                  onKeyDown={(e) => {
+                    linePasted.current = false;
+                    if (e.key === "Enter") reader.flush();
+                  }} />
                 <p className={lineRead === "bad" ? "error" : "hint"}>
                   {lineRead === null
                     ? t("px.quickHint")
