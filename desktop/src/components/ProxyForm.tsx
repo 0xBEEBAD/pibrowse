@@ -7,7 +7,6 @@ import { Icon } from "./Icon";
 import { NetworkReport } from "./NetworkReport";
 import { useI18n } from "../i18n";
 import { proxyLineReader, spreadPastedProxy } from "../proxyLine";
-import { proxyQuickLabels } from "../proxyQuickI18n";
 import { proxyUrl, wgEndpoint } from "../proxyUrl";
 import { WireGuardConf } from "./WireGuardConf";
 
@@ -50,8 +49,7 @@ export function ProxyForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t, say, resolved } = useI18n();
-  const quick = proxyQuickLabels(resolved);
+  const { t, say } = useI18n();
   const locked = editing ? proxyLock(editing, myEmail, t) : null;
   const [name, setName] = useState(editing?.name ?? "");
   const [kind, setKind] = useState(editing?.kind ?? "socks5");
@@ -166,7 +164,7 @@ export function ProxyForm({
         <div className={locked ? "form locked" : "form"} style={{ paddingTop: "var(--s-5)" }}>
           {!locked && !wg && (
             <div className="field">
-              <label htmlFor="f-line">{quick.label}</label>
+              <label htmlFor="f-line">{t("px.quick")}</label>
               <div>
                 <input id="f-line" value={line} autoFocus={!editing} spellCheck={false} autoComplete="off"
                   className="mono"
@@ -174,10 +172,10 @@ export function ProxyForm({
                   onChange={(e) => readLine(e.target.value)} />
                 <p className={lineRead === "bad" ? "error" : "hint"}>
                   {lineRead === null
-                    ? quick.hint
+                    ? t("px.quickHint")
                     : lineRead === "bad"
-                      ? quick.bad
-                      : quick.readAs.replace("{shape}", t(`pp.shape.${lineRead.shape}` as never))}
+                      ? t("px.quickBad")
+                      : t("px.quickReadAs", { shape: t(`pp.shape.${lineRead.shape}` as never) })}
                 </p>
               </div>
             </div>

@@ -2,7 +2,6 @@
 // Copyright 2026 Bogdan Shapovalov and the Fury authors
 
 import { useI18n } from "../i18n";
-import { quickCreateLabels } from "../quickCreateI18n";
 import { useState } from "react";
 import type { Me, Project, Shell } from "../api";
 
@@ -50,8 +49,7 @@ export function Sidebar({
   quickBusy: boolean;
   onSettings: () => void;
 }) {
-  const { t, resolved } = useI18n();
-  const q = quickCreateLabels(resolved);
+  const { t } = useI18n();
   const local = shell.mode === "local";
   const [menu, setMenu] = useState<string | null>(null);
   return (
@@ -64,11 +62,11 @@ export function Sidebar({
       {/* Beside the full dialog, not instead of it: one click for a profile
           to fill in later, and the batch for many of them. */}
       <div className="quickCreate">
-        <button disabled={quickBusy} title={q("oneTitle")} onClick={onQuickCreate}>
-          {q("one")}
+        <button disabled={quickBusy} title={t("qc.oneTitle")} onClick={onQuickCreate}>
+          {t("qc.one")}
         </button>
-        <button className="quickBatch" title={q("batchTitle")} onClick={onBatch}>
-          {q("batch")}
+        <button className="quickBatch" title={t("qc.batchTitle")} onClick={onBatch}>
+          {t("qc.batch")}
         </button>
       </div>
 

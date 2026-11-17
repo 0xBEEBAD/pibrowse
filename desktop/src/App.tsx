@@ -39,7 +39,6 @@ import { defaultWorkspacePreferences, selectWorkspaceProfiles, visibleSelectionS
 import { workspaceLabels } from "./profileWorkspaceI18n";
 import { useProfileWorkspace } from "./useProfileWorkspace";
 import { nextNumber } from "./quickCreate";
-import { quickCreateLabels } from "./quickCreateI18n";
 
 /** What the browser build the agent asks for changes, for the bar that offers
  *  it. One sentence for every build told a Mac being offered 0.3.8 about a
@@ -323,15 +322,14 @@ export function App() {
    *  settings, not a side effect of the quick way in. */
   const [quickBusy, setQuickBusy] = useState(false);
   const quickCreate = async () => {
-    const q = quickCreateLabels(resolved);
     if (newOrigin === "team" && !canChooseOrigin) {
-      setError(q("team"));
+      setError(t("qc.team"));
       return;
     }
     setQuickBusy(true);
     setError(null);
     try {
-      const pattern = q("name");
+      const pattern = t("qc.name");
       // Every profile, not only the open project's: the number should not
       // repeat a name that is merely filtered out of view.
       const names = (await api.profiles().catch(() => profiles)).map((p) => p.name);
@@ -344,7 +342,7 @@ export function App() {
       if (r.failed.length > 0) throw new Error(r.failed[0].error);
       await load();
       await refreshProfiles();
-      setNotice({ text: q("made", { name: pattern.replace("{n}", String(n)) }), forProfile: null });
+      setNotice({ text: t("qc.made", { name: pattern.replace("{n}", String(n)) }), forProfile: null });
     } catch (e) {
       setError(say(e));
     } finally {

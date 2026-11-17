@@ -6,7 +6,6 @@ import { api, type LocalProxy, type Profile, type ProfileTemplate } from "../api
 import { dictionary, useI18n } from "../i18n";
 import { numberedProxyLines, proxyLines } from "../quickCreate";
 import { proxiesFor } from "../proxyIds";
-import { quickCreateLabels } from "../quickCreateI18n";
 import { SUGGESTED } from "../status";
 import { Select } from "./Select";
 import { SuggestInput } from "./SuggestInput";
@@ -49,8 +48,7 @@ export function BulkProfiles({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const { t, say, resolved } = useI18n();
-  const q = quickCreateLabels(resolved);
+  const { t, say } = useI18n();
   const dict = dictionary();
   const cloning = cloneOf !== null;
   // A supplier's list, pasted: one proxy per profile, in order.
@@ -62,7 +60,7 @@ export function BulkProfiles({
 
   const [count, setCount] = useState("10");
   const [pattern, setPattern] = useState(
-    cloning ? `${cloneOf.name} {n}` : q("name"),
+    cloning ? `${cloneOf.name} {n}` : t("qc.name"),
   );
   const [proxyId, setProxyId] = useState("");
   const [tags, setTags] = useState("");
@@ -263,7 +261,7 @@ export function BulkProfiles({
                   </div>
 
                   <div className="field">
-                    <label htmlFor="bp-pasted">{q("proxies")}</label>
+                    <label htmlFor="bp-pasted">{t("qc.proxies")}</label>
                     <div>
                       <textarea
                         id="bp-pasted"
@@ -275,16 +273,16 @@ export function BulkProfiles({
                         onChange={(e) => setPasted(e.target.value)}
                       />
                       <p className="hint">
-                        {q("proxiesHint")}
+                        {t("qc.proxiesHint")}
                         {inRange && lines.length > 0 && (
                           <>
                             {" "}
                             <strong>
                               {lines.length < n
-                                ? q("fewer", { p: lines.length, n, r: n - lines.length })
+                                ? t("qc.fewer", { p: lines.length, n, r: n - lines.length })
                                 : lines.length > n
-                                  ? q("extra", { p: lines.length, n })
-                                  : q("exact", { n })}
+                                  ? t("qc.extra", { p: lines.length, n })
+                                  : t("qc.exact", { n })}
                             </strong>
                           </>
                         )}
@@ -403,14 +401,14 @@ export function BulkProfiles({
           {made && (
             <>
               <p>{t("bp.made", { n: made.created.length })}</p>
-              {proxied && proxied.assigned > 0 && <p className="hint">{q("assigned", { n: proxied.assigned })}</p>}
+              {proxied && proxied.assigned > 0 && <p className="hint">{t("qc.assigned", { n: proxied.assigned })}</p>}
               {proxied && proxied.rejected.length > 0 && (
                 <div className="settingsGroup">
-                  <h2>{q("rejected", { n: proxied.rejected.length })}</h2>
+                  <h2>{t("qc.rejected", { n: proxied.rejected.length })}</h2>
                   <ul className="hint" style={{ paddingLeft: "1.2em", lineHeight: 1.7 }}>
                     {proxied.rejected.map((r) => (
                       <li key={r.line}>
-                        {q("line", { n: r.line })}:{" "}
+                        {t("qc.line", { n: r.line })}:{" "}
                         {r.code && `pp.why.${r.code}` in dict ? t(`pp.why.${r.code}` as never) : r.error}
                       </li>
                     ))}
@@ -474,7 +472,7 @@ export function BulkProfiles({
                           existing: proxies,
                           namePrefix: "",
                           origin: where,
-                          unreadable: q("unreadable"),
+                          unreadable: t("qc.unreadable"),
                         }, api);
                         proxyIds = found.map((f) => f.id ?? "");
                         setProxied({
