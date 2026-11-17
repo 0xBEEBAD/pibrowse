@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api, type LocalProxy, type Profile, type ProfileTemplate } from "../api";
 import { dictionary, useI18n } from "../i18n";
 import { numberedProxyLines, proxyLines } from "../quickCreate";
-import { proxiesFor } from "../proxyIds";
+import { proxiesFor, sharedExits, unusedProxies, type ProxyFor } from "../proxyIds";
 import { SUGGESTED } from "../status";
 import { Select } from "./Select";
 import { SuggestInput } from "./SuggestInput";
@@ -56,6 +56,10 @@ export function BulkProfiles({
   const [proxied, setProxied] = useState<{
     assigned: number;
     rejected: { line: number; error: string; code?: string }[];
+    /** Profiles, by their place in the batch, that leave through one proxy. */
+    shared: number[][];
+    /** Proxies saved for profiles that were not made, and taken out again. */
+    dropped: number;
   } | null>(null);
 
   const [count, setCount] = useState("10");
@@ -121,6 +125,10 @@ export function BulkProfiles({
 
   const n = Number(count);
   const lines = cloning ? [] : proxyLines(pasted);
+  // Lines among those the batch will use that say what a line above them
+  // says: each is a profile put behind another profile's exit.
+  const repeated = sharedExits(lines.slice(0, Number.isInteger(n) && n > 0 ? n : 0).map((l) => l.toLowerCase()))
+    .reduce((sum, group) => sum + group.length - 1, 0);
   const inRange = Number.isInteger(n) && n >= 1 && n <= 500;
   // On a team server the project is what carries access and the proxy is what
   // the browser goes through; the create endpoint requires both.
@@ -287,6 +295,7 @@ export function BulkProfiles({
                           </>
                         )}
                       </p>
+                      {inRange && repeated > 0 && <p className="error">{t("qc.repeated", { n: repeated })}</p>}
                     </div>
                   </div>
 
@@ -415,6 +424,17 @@ export function BulkProfiles({
                   </ul>
                 </div>
               )}
+              {proxied && proxied.shared.length > 0 && (
+                <div className="settingsGroup">
+                  <h2>{t("qc.shared", { n: proxied.shared.reduce((sum, g) => sum + g.length, 0) })}</h2>
+                  <ul className="hint" style={{ paddingLeft: "1.2em", lineHeight: 1.7 }}>
+                    {proxied.shared.map((group) => (
+                      <li key={group[0]}>{group.map((k) => preview(k + 1)).join(", ")}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {proxied && proxied.dropped > 0 && <p className="hint">{t("qc.dropped", { n: proxied.dropped })}</p>}
               {(made.failed?.length ?? 0) > 0 && (
                 <div className="settingsGroup">
                   <h2>{t("bp.failed", { n: made.failed?.length ?? 0 })}</h2>
@@ -464,25 +484,30 @@ export function BulkProfiles({
                       // profiles, so nothing is saved that no profile uses. A
                       // line that was refused leaves its profile on the proxy
                       // chosen above, and the lines after it keep their own
-                      // profiles.
-                      let proxyIds: string[] = [];
+                      // profiles. A proxy named twice is given twice, and the
+                      // answer names the profiles that share it.
+                      let found: ProxyFor[] = [];
+                      const taken = numberedProxyLines(pasted).slice(0, n);
                       if (lines.length > 0) {
-                        const taken = numberedProxyLines(pasted).slice(0, n);
-                        const found = await proxiesFor(taken.map((l) => l.text), {
+                        found = await proxiesFor(taken.map((l) => l.text), {
                           existing: proxies,
                           namePrefix: "",
                           origin: where,
                           unreadable: t("qc.unreadable"),
                         }, api);
-                        proxyIds = found.map((f) => f.id ?? "");
-                        setProxied({
-                          assigned: found.filter((f) => f.id).length,
-                          rejected: found.flatMap((f, k) =>
-                            f.error ? [{ line: taken[k].line, error: f.error, code: f.code }] : []),
-                        });
                       }
-                      setMade(
-                        await api.createProfiles(n, pattern, {
+                      // The proxies are saved before the profiles are made. A
+                      // proxy saved just now for a profile that then was not
+                      // made is taken out again, or a failed batch would leave
+                      // the list holding proxies nothing uses.
+                      const takeBack = async (failed: ReadonlySet<number>) => {
+                        const unused = unusedProxies(found, failed);
+                        await Promise.all(unused.map((id) => api.deleteProxy(id, where).catch(() => {})));
+                        return unused.length;
+                      };
+                      let batch: Made;
+                      try {
+                        batch = await api.createProfiles(n, pattern, {
                           id: "",
                           project_id: projectId,
                           name: "",
@@ -503,8 +528,25 @@ export function BulkProfiles({
                           languages: split(languages).length > 0 ? split(languages) : null,
                           start_urls: split(startUrls),
                           last_opened_at: null,
-                        }, where, { proxyIds }),
-                      );
+                        }, where, { proxyIds: found.map((f) => f.id ?? "") });
+                      } catch (e) {
+                        await takeBack(new Set(found.keys()));
+                        throw e;
+                      }
+                      // The batch numbers from 1, so profile `n` is line n - 1.
+                      const failed = new Set((batch.failed ?? []).map((f) => f.n - 1));
+                      const dropped = await takeBack(failed);
+                      const got = found.map((f, k) => (failed.has(k) ? null : f.id));
+                      if (found.length > 0) {
+                        setProxied({
+                          assigned: got.filter(Boolean).length,
+                          rejected: found.flatMap((f, k) =>
+                            f.error ? [{ line: taken[k].line, error: f.error, code: f.code }] : []),
+                          shared: sharedExits(got),
+                          dropped,
+                        });
+                      }
+                      setMade(batch);
                     }
                   } catch (e) {
                     setError(say(e));
