@@ -3258,9 +3258,13 @@ pub async fn create_profiles(
         .trim()
         .is_empty();
 
+    // `start + count` in u32 wrapped for a start near the top of the range,
+    // and the batch then made nothing without saying so. Count in u64, as the
+    // agent does.
+    let first = u64::from(start);
     let mut created = Vec::new();
     let mut failed = Vec::new();
-    for (k, i) in (start..start + count).enumerate() {
+    for (k, i) in (first..first + u64::from(count)).enumerate() {
         let mut one = template.clone();
         one["id"] = serde_json::json!("");
         one["name"] = serde_json::json!(pattern.replace("{n}", &i.to_string()));

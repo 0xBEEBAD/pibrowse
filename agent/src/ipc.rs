@@ -2263,6 +2263,13 @@ impl Agent {
                 // already holds "Shop 1" to "Shop 20" starts at 21 rather than
                 // making twenty more of the same names.
                 let start = params.get("start").and_then(|v| v.as_u64()).unwrap_or(1).max(1);
+                // The automation API passes `start` through as it came. One near
+                // u64::MAX overflowed `start + count`: a panic in a debug build,
+                // and in a release build a range that wrapped round to empty, so
+                // the call made nothing and reported no failure.
+                let end = start
+                    .checked_add(count)
+                    .ok_or_else(|| anyhow::anyhow!("start is too large: start + count must fit in 64 bits"))?;
                 // One proxy per profile, in order: the first id goes to the
                 // first profile. A profile past the end of the list keeps the
                 // template's proxy (or none) -- handing the list round again
@@ -2275,7 +2282,7 @@ impl Agent {
 
                 let mut made = Vec::new();
                 let mut failed = Vec::new();
-                for (k, i) in (start..start + count).enumerate() {
+                for (k, i) in (start..end).enumerate() {
                     let mut p = template.clone();
                     p.id = String::new();
                     p.fp_seed = 0;
@@ -5567,7 +5574,7 @@ mod exit_check_tests {
         });
         let made = Box::pin(agent.dispatch(
             "profiles.createMany",
-            serde_json::json!({ "count": 3, "name_pattern": "w {n}", "template": template, "start": 7, "proxy_ids": ids }),
+            serde_json::json!({ "count": 3, "name_pattern": "w {n}", "template": template.clone(), "start": 7, "proxy_ids": ids }),
         ))
         .await
         .unwrap();
@@ -5581,6 +5588,15 @@ mod exit_check_tests {
         assert_eq!(host("w 7").as_deref(), Some("10.0.0.1"));
         assert_eq!(host("w 8").as_deref(), Some("10.0.0.2"));
         assert_eq!(host("w 9"), None, "the list is not handed round a second time");
+
+        // A start the numbering cannot continue from is refused, not wrapped
+        // round into a batch of nothing.
+        let refused = Box::pin(agent.dispatch(
+            "profiles.createMany",
+            serde_json::json!({ "count": 2, "name_pattern": "w {n}", "template": template, "start": u64::MAX }),
+        ))
+        .await;
+        assert!(refused.unwrap_err().to_string().contains("start is too large"));
         drop(tidy);
     }
 
